@@ -6,9 +6,18 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+#define SCREEN_WIDTH 170
+#define SCREEN_HEIGHT 320
+/*
+#define TFT_BL           12    // LED back-light control pin
+#define TFT_MISO -1      // -1 es no usado.
+#define TFT_MOSI 35      // Mosi SDA
+#define TFT_SCLK 19      // Reloj
+#define TFT_CS   15       // Chip Select
+#define TFT_DC    13      // Data Comand.
+#define TFT_RST   14      // Reset.
 
+*/
 // Push Buttons-specific Pins
 #define BUTTON_UP_PIN       26 
 #define BUTTON_SELECT_PIN   33
@@ -25,7 +34,7 @@
 #define NRF_CSN_PIN_A   17 
 #define NRF_CE_PIN_B    16  
 #define NRF_CSN_PIN_B   4  
-#define NRF_CE_PIN_C    15  
+#define NRF_CE_PIN_C    20  
 #define NRF_CSN_PIN_C   2  
 
 // Common dependencies
@@ -41,10 +50,6 @@
 #include <string>
 #include <SD.h>
 #include <Update.h>
-
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-
-Adafruit_NeoPixel pixels(1, 14, NEO_GRB + NEO_KHZ800);
 
 // BLE-specific dependencies
 #include <BLEDevice.h>

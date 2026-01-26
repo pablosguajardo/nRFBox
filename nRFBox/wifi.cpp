@@ -6,6 +6,9 @@
 #include "config.h"
 #include "icon.h"
 
+// Nota: no incluimos esp_idf_version.h para mantener compatibilidad entre cores.
+// Si ESP_IDF_VERSION_MAJOR está definido por el core, lo usamos en el #if más abajo.
+
 namespace WifiScan {
   
 int currentIndex = 0;
@@ -182,9 +185,19 @@ bool scanning = false;
 uint32_t last_packet_time = 0;
 String lastNeoPixelColour = "0"; 
 
+/*
+  En algunas versiones antiguas era necesario "anular" este check para poder
+  inyectar tramas raw. En ESP32 Arduino 2.x (IDF 4.x/5.x) ya existe en el SDK y
+  redefinirlo provoca "multiple definition" al linkear.
+*/
+#if defined(ESP_IDF_VERSION_MAJOR) && (ESP_IDF_VERSION_MAJOR < 4)
 extern "C" int ieee80211_raw_frame_sanity_check(int32_t arg, int32_t arg2, int32_t arg3) {
+    (void)arg;
+    (void)arg2;
+    (void)arg3;
     return 0;
 }
+#endif
 
 void wsl_bypasser_send_raw_frame(const uint8_t *frame_buffer, int size) {
     esp_err_t res = esp_wifi_80211_tx(WIFI_IF_AP, frame_buffer, size, false);
@@ -581,4 +594,4 @@ void deautherLoop() {
         last_status_time = currentMillis;
     }
   }
-} 
+}
