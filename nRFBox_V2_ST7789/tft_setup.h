@@ -11,18 +11,18 @@
 // Orden de color
 #define TFT_RGB_ORDER TFT_BGR
 
-// Tamaño del display (según tu setup actual)
-#define TFT_WIDTH  170
+// Tamaño del display
+#define TFT_WIDTH  172
 #define TFT_HEIGHT 320
 
 // Backlight
 #define TFT_BL           12
 #define TFT_BACKLIGHT_ON HIGH
 
-// Pines SPI / control (según Setup72_ESP32_ST7789_172x320.h)
+// Pines SPI / control (según tu cableado)
 #define TFT_MISO -1
-#define TFT_MOSI 35
-#define TFT_SCLK 19
+#define TFT_MOSI 35   // SDA
+#define TFT_SCLK 19   // CLK
 #define TFT_CS   15
 #define TFT_DC   13
 #define TFT_RST  14
@@ -57,5 +57,5 @@
   #undef SMOOTH_FONT
 #endif
 
-// Frecuencia SPI
-#define SPI_FREQUENCY 27000000
+// Frecuencia SPI (bajar un poco ayuda a evitar problemas de señal / WDT)
+#define SPI_FREQUENCY 20000000
