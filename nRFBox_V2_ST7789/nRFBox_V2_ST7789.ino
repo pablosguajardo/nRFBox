@@ -8,6 +8,8 @@
 #include <Adafruit_NeoPixel.h>
 #include <EEPROM.h>
 
+#include <esp_system.h>
+
 #include <SPI.h>
 #include "display_compat.h"
 
@@ -132,6 +134,23 @@ enum ScreenId : uint8_t {
 static ScreenId activeScreen = SCREEN_MENU;
 static bool screenNeedsSetup = false;
 
+static const char* resetReasonToStr(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_UNKNOWN:   return "UNKNOWN";
+    case ESP_RST_POWERON:   return "POWERON";
+    case ESP_RST_EXT:       return "EXT";
+    case ESP_RST_SW:        return "SW";
+    case ESP_RST_PANIC:     return "PANIC";
+    case ESP_RST_INT_WDT:   return "INT_WDT";
+    case ESP_RST_TASK_WDT:  return "TASK_WDT";
+    case ESP_RST_WDT:       return "WDT";
+    case ESP_RST_DEEPSLEEP: return "DEEPSLEEP";
+    case ESP_RST_BROWNOUT:  return "BROWNOUT";
+    case ESP_RST_SDIO:      return "SDIO";
+    default:                return "OTHER";
+  }
+}
+
 static ScreenId screenFromMenuItem(int item) {
   switch (item) {
     case 0: return SCREEN_SCANNER;
@@ -202,6 +221,12 @@ static void drawMenu() {
 
 void setup() {
 
+  Serial.begin(115200);
+  delay(50);
+  Serial.println();
+  Serial.print("Reset reason: ");
+  Serial.println(resetReasonToStr(esp_reset_reason()));
+
   neopixelSetup();
 
   //configureNrf(RadioA);
@@ -214,6 +239,15 @@ void setup() {
   u8g2.begin();
   u8g2.setContrast(oledBrightness);
   u8g2.setBitmapMode(1);
+
+  // Diagnóstico visible para detectar si es brownout/WDT/panic/etc.
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x10_tf);
+  u8g2.drawStr(0, 12, "Reset:");
+  u8g2.setCursor(0, 28);
+  u8g2.print(resetReasonToStr(esp_reset_reason()));
+  u8g2.sendBuffer();
+  delay(800);
 
   u8g2.clearBuffer();
 
@@ -255,6 +289,18 @@ void setup() {
 }
 
 void loop() {
+  // Ignorar botones al arranque: evita entrar solo a pantallas por ruido o
+  // porque el botón está presionado durante el boot.
+  static uint32_t bootIgnoreUntilMs = 0;
+  if (bootIgnoreUntilMs == 0) bootIgnoreUntilMs = millis() + 1500;
+  if (millis() < bootIgnoreUntilMs) {
+    button_up_clicked = (digitalRead(BUTTON_UP_PIN) == LOW) ? 1 : 0;
+    button_down_clicked = (digitalRead(BUTTON_DOWN_PIN) == LOW) ? 1 : 0;
+    button_select_clicked = (digitalRead(BUTTON_SELECT_PIN) == LOW) ? 1 : 0;
+    delay(10);
+    return;
+  }
+
   // ------------------------------------------------------------
   // Lectura de botones con “edge detect” (click)
   // ------------------------------------------------------------
