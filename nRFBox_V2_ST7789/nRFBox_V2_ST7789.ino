@@ -69,7 +69,6 @@ Adafruit_NeoPixel pixels(1, 14, NEO_GRB + NEO_KHZ800);
 
 extern uint8_t oledBrightness;
 
-
 const unsigned char* bitmap_icons[11] = {
   bitmap_icon_scanner,
   bitmap_icon_analyzer,
@@ -84,38 +83,71 @@ const unsigned char* bitmap_icons[11] = {
   bitmap_icon_setting
 };
 
+const int NUM_ITEMS = 11;
+const int MAX_ITEM_LENGTH = 20;
 
-const int NUM_ITEMS = 11; 
-const int MAX_ITEM_LENGTH = 20; 
-
-char menu_items [NUM_ITEMS] [MAX_ITEM_LENGTH] = {  
-  { "Scanner" }, 
+char menu_items[NUM_ITEMS][MAX_ITEM_LENGTH] = {
+  { "Scanner" },
   { "Analyzer" },
   { "WLAN Jammer" },
   { "Proto Kill" },
   { "BLE Jammer" },
-  { "BLE Spoofer" }, 
+  { "BLE Spoofer" },
   { "Sour Apple" },
   { "BLE Scan" },
   { "WiFi Scan" },
   { "About" },
   { "Setting" }
- };
- 
+};
 
+int button_up_clicked = 0;
+int button_select_clicked = 0;
+int button_down_clicked = 0;
 
+int item_selected = 0;
 
-int button_up_clicked = 0; 
-int button_select_clicked = 0; 
-int button_down_clicked = 0; 
+int item_sel_previous;
+int item_sel_next;
 
-int item_selected = 0; 
+// -----------------------------------------------------------------------------
+// Máquina de estados (NO bloqueante)
+// Motivo: los while() bloqueantes podían disparar WDT y resetear si el botón
+// SELECT quedaba en LOW/flotante al arranque.
+// -----------------------------------------------------------------------------
+enum ScreenId : uint8_t {
+  SCREEN_MENU = 0,
+  SCREEN_SCANNER,
+  SCREEN_ANALYZER,
+  SCREEN_JAMMER,
+  SCREEN_BLACKOUT,
+  SCREEN_BLE_JAMMER,
+  SCREEN_SPOOFER,
+  SCREEN_SOURAPPLE,
+  SCREEN_BLESCAN,
+  SCREEN_WIFISCAN,
+  SCREEN_ABOUT,
+  SCREEN_SETTING,
+};
 
-int item_sel_previous; 
-int item_sel_next; 
+static ScreenId activeScreen = SCREEN_MENU;
+static bool screenNeedsSetup = false;
 
-int current_screen = 0;  
-
+static ScreenId screenFromMenuItem(int item) {
+  switch (item) {
+    case 0: return SCREEN_SCANNER;
+    case 1: return SCREEN_ANALYZER;
+    case 2: return SCREEN_JAMMER;
+    case 3: return SCREEN_BLACKOUT;
+    case 4: return SCREEN_BLE_JAMMER;
+    case 5: return SCREEN_SPOOFER;
+    case 6: return SCREEN_SOURAPPLE;
+    case 7: return SCREEN_BLESCAN;
+    case 8: return SCREEN_WIFISCAN;
+    case 9: return SCREEN_ABOUT;
+    case 10: return SCREEN_SETTING;
+    default: return SCREEN_MENU;
+  }
+}
 
 void about() {
   u8g2.clearBuffer();
@@ -136,6 +168,37 @@ void configureNrf(RF24 &radio) {
   radio.setCRCLength(RF24_CRC_DISABLED);
 }
 
+static void drawMenu() {
+  item_sel_previous = item_selected - 1;
+  if (item_sel_previous < 0) {
+    item_sel_previous = NUM_ITEMS - 1;
+  }
+  item_sel_next = item_selected + 1;
+  if (item_sel_next >= NUM_ITEMS) {
+    item_sel_next = 0;
+  }
+
+  u8g2.clearBuffer();
+
+  u8g2.drawXBMP(0, 22, 128, 21, bitmap_item_sel_outline);
+
+  u8g2.setFont(u8g_font_7x14);
+  u8g2.drawStr(25, 15, menu_items[item_sel_previous]);
+  u8g2.drawXBMP(4, 2, 16, 16, bitmap_icons[item_sel_previous]);
+
+  u8g2.setFont(u8g_font_7x14B);
+  u8g2.drawStr(25, 15 + 20 + 2, menu_items[item_selected]);
+  u8g2.drawXBMP(4, 24, 16, 16, bitmap_icons[item_selected]);
+
+  u8g2.setFont(u8g_font_7x14);
+  u8g2.drawStr(25, 15 + 20 + 20 + 2 + 2, menu_items[item_sel_next]);
+  u8g2.drawXBMP(4, 46, 16, 16, bitmap_icons[item_sel_next]);
+
+  u8g2.drawXBMP(128 - 8, 0, 8, 64, bitmap_scrollbar_background);
+  u8g2.drawBox(125, 64 / NUM_ITEMS * item_selected, 3, 64 / NUM_ITEMS);
+
+  u8g2.sendBuffer();
+}
 
 void setup() {
 
@@ -145,380 +208,182 @@ void setup() {
   //configureNrf(RadioB);
   //configureNrf(RadioC);
 
-  EEPROM.begin(512); 
+  EEPROM.begin(512);
   oledBrightness = EEPROM.read(1);
-  
+
   u8g2.begin();
   u8g2.setContrast(oledBrightness);
   u8g2.setBitmapMode(1);
 
   u8g2.clearBuffer();
 
-  u8g2.setFont(u8g2_font_ncenB14_tr); 
-  int16_t nameWidth = u8g2.getUTF8Width("nRF-BOX"); 
-  int16_t nameX = (128 - nameWidth) / 2;            
-  u8g2.setCursor(nameX, 25);                      
+  u8g2.setFont(u8g2_font_ncenB14_tr);
+  int16_t nameWidth = u8g2.getUTF8Width("nRF-BOX");
+  int16_t nameX = (128 - nameWidth) / 2;
+  u8g2.setCursor(nameX, 25);
   u8g2.print("nRF-BOX");
 
-  u8g2.setFont(u8g2_font_ncenB08_tr); 
+  u8g2.setFont(u8g2_font_ncenB08_tr);
   int16_t creditWidth = u8g2.getUTF8Width("by CiferTech");
   int16_t creditX = (106 - creditWidth) / 2;
   u8g2.setCursor(creditX, 40);
   u8g2.print("by CiferTech");
 
-  u8g2.setFont(u8g2_font_6x10_tf); 
+  u8g2.setFont(u8g2_font_6x10_tf);
   int16_t versionWidth = u8g2.getUTF8Width("v2.5.0");
   int16_t versionX = (128 - versionWidth) / 2;
   u8g2.setCursor(versionX, 60);
   u8g2.print("v2.5.0");
-  
-  u8g2.sendBuffer(); 
+
+  u8g2.sendBuffer();
   delay(3000);
 
   u8g2.clearBuffer();
 
   u8g2.drawXBMP(0, 0, 128, 64, logo_cifer);
 
-  u8g2.sendBuffer(); 
-  delay(250);   
+  u8g2.sendBuffer();
+  delay(250);
 
-  pinMode(BUTTON_UP_PIN, INPUT_PULLUP); 
-  pinMode(BUTTON_SELECT_PIN, INPUT_PULLUP); 
-  pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP); 
+  pinMode(BUTTON_UP_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_SELECT_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
 
+  activeScreen = SCREEN_MENU;
+  screenNeedsSetup = false;
+  drawMenu();
 }
-
 
 void loop() {
+  // ------------------------------------------------------------
+  // Lectura de botones con “edge detect” (click)
+  // ------------------------------------------------------------
+  bool upPressedEvent = false;
+  bool downPressedEvent = false;
 
-  if (current_screen == 0) { // MENU SCREEN
-    
-      if ((digitalRead(BUTTON_UP_PIN) == LOW) && (button_up_clicked == 0)) { 
-        item_selected = item_selected - 1; 
-        button_up_clicked = 1; 
-        if (item_selected < 0) { 
-          item_selected = NUM_ITEMS-1;
-        }
-      }
-      else if ((digitalRead(BUTTON_DOWN_PIN) == LOW) && (button_down_clicked == 0)) { 
-        item_selected = item_selected + 1; 
-        button_down_clicked = 1; 
-        if (item_selected >= NUM_ITEMS) { 
-          item_selected = 0;
-          }
-      } 
-
-      if ((digitalRead(BUTTON_UP_PIN) == HIGH) && (button_up_clicked == 1)) { 
-        button_up_clicked = 0;
-      }
-      if ((digitalRead(BUTTON_DOWN_PIN) == HIGH) && (button_down_clicked == 1)) { 
-        button_down_clicked = 0;
-      }
+  if ((digitalRead(BUTTON_UP_PIN) == LOW) && (button_up_clicked == 0)) {
+    button_up_clicked = 1;
+    upPressedEvent = true;
+  } else if ((digitalRead(BUTTON_UP_PIN) == HIGH) && (button_up_clicked == 1)) {
+    button_up_clicked = 0;
   }
 
-
-  bool callAbout = true;
-
-  if ((digitalRead(BUTTON_SELECT_PIN) == LOW) && (button_select_clicked == 0)) { 
-     button_select_clicked = 1; 
-
-
-if (current_screen == 0 && item_selected == 10) {
-  settingSetup();
-    while (item_selected == 10) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-            if (callAbout) {
-                settingLoop();
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
-  }     
-
-
-if (current_screen == 0 && item_selected == 9) {
-    while (item_selected == 9) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-            if (callAbout) {
-                about();
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
+  if ((digitalRead(BUTTON_DOWN_PIN) == LOW) && (button_down_clicked == 0)) {
+    button_down_clicked = 1;
+    downPressedEvent = true;
+  } else if ((digitalRead(BUTTON_DOWN_PIN) == HIGH) && (button_down_clicked == 1)) {
+    button_down_clicked = 0;
   }
 
+  // SELECT: click + long-press para "volver" (para no chocar con Setting u otros)
+  static uint32_t selectPressStartMs = 0;
+  static bool selectLongSent = false;
 
-if (current_screen == 0 && item_selected == 8) {
-  wifiscanSetup();
-    while (item_selected == 8) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) { 
-         wifiscanLoop();     
-            if (callAbout) {                             
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
+  bool selectPressedEvent = false;
+  bool selectLongPressEvent = false;
 
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
-}
+  bool selectDown = (digitalRead(BUTTON_SELECT_PIN) == LOW);
 
-
-if (current_screen == 0 && item_selected == 7) {
-  blescanSetup();
-    while (item_selected == 7) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) { 
-          blescanLoop();     
-            if (callAbout) {                
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
-}
-
-
-if (current_screen == 0 && item_selected == 6) {
-  sourappleSetup();
-    while (item_selected == 6) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) { 
-          sourappleLoop();     
-            if (callAbout) {                
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
-}     
-
-
-if (current_screen == 0 && item_selected == 5) {
-  spooferSetup();
-    while (item_selected == 5) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) { 
-          spooferLoop();     
-            if (callAbout) {                
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
-}
-     
-
-if (current_screen == 0 && item_selected == 4) {
-  blejammerSetup();
-    while (item_selected == 4) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) { 
-          blejammerLoop();     
-            if (callAbout) {                
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
-}
-
-
-if (current_screen == 0 && item_selected == 3) {
-  blackoutSetup();
-    while (item_selected == 3) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) { 
-          blackoutLoop();     
-            if (callAbout) {                
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
-}
-     
-
-if (current_screen == 0 && item_selected == 2) {
-  jammerSetup();
-    while (item_selected == 2) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) { 
-          jammerLoop();     
-            if (callAbout) {                
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
-}     
-     
- 
-if (current_screen == 0 && item_selected == 1) {
-  analyzerSetup();
-    while (item_selected == 1) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) { 
-          analyzerLoop();     
-            if (callAbout) {                
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
-}    
-   
-
-if (current_screen == 0 && item_selected == 0) {
-  scannerSetup();
-    while (item_selected == 0) {
-        if (digitalRead(BUTTON_SELECT_PIN) == HIGH) {       
-            if (callAbout) {
-                scannerLoop();   
-                callAbout = false;  // Toggle the state to not call about()
-            } else {
-                break;  // Toggle the state to break the loop
-                callAbout = true;  // Reset the state for the next cycle
-            }
-
-            while (digitalRead(BUTTON_SELECT_PIN) == HIGH) {
-                // Wait for the button to be released
-                if (callAbout = true){
-                  break;
-                }
-            }
-        }
-    }
- }  
-
-}  
-
-  if ((digitalRead(BUTTON_SELECT_PIN) == HIGH) && (button_select_clicked == 1)) { 
+  if (selectDown && (button_select_clicked == 0)) {
+    button_select_clicked = 1;
+    selectPressedEvent = true;
+    selectPressStartMs = millis();
+    selectLongSent = false;
+  } else if (!selectDown && (button_select_clicked == 1)) {
     button_select_clicked = 0;
+    selectPressStartMs = 0;
+    selectLongSent = false;
   }
 
+  // Long press solo cuando NO estás en el menú (back global)
+  if (activeScreen != SCREEN_MENU && selectDown && (button_select_clicked == 1) && !selectLongSent) {
+    if (millis() - selectPressStartMs > 900) {
+      selectLongPressEvent = true;
+      selectLongSent = true;
+    }
+  }
 
-  item_sel_previous = item_selected - 1;
-  if (item_sel_previous < 0) {item_sel_previous = NUM_ITEMS - 1;} 
-  item_sel_next = item_selected + 1;  
-  if (item_sel_next >= NUM_ITEMS) {item_sel_next = 0;} 
+  // ------------------------------------------------------------
+  // Menú
+  // ------------------------------------------------------------
+  if (activeScreen == SCREEN_MENU) {
+    if (upPressedEvent) {
+      item_selected = item_selected - 1;
+      if (item_selected < 0) {
+        item_selected = NUM_ITEMS - 1;
+      }
+      drawMenu();
+    } else if (downPressedEvent) {
+      item_selected = item_selected + 1;
+      if (item_selected >= NUM_ITEMS) {
+        item_selected = 0;
+      }
+      drawMenu();
+    }
 
+    if (selectPressedEvent) {
+      activeScreen = screenFromMenuItem(item_selected);
+      screenNeedsSetup = true;
+    }
 
+    // Mantener el watchdog satisfecho
+    delay(1);
+    return;
+  }
 
-  u8g2.clearBuffer();  
+  // ------------------------------------------------------------
+  // Screens / Módulos
+  // ------------------------------------------------------------
+  if (screenNeedsSetup) {
+    switch (activeScreen) {
+      case SCREEN_SCANNER: scannerSetup(); break;
+      case SCREEN_ANALYZER: analyzerSetup(); break;
+      case SCREEN_JAMMER: jammerSetup(); break;
+      case SCREEN_BLACKOUT: blackoutSetup(); break;
+      case SCREEN_BLE_JAMMER: blejammerSetup(); break;
+      case SCREEN_SPOOFER: spooferSetup(); break;
+      case SCREEN_SOURAPPLE: sourappleSetup(); break;
+      case SCREEN_BLESCAN: blescanSetup(); break;
+      case SCREEN_WIFISCAN: wifiscanSetup(); break;
+      case SCREEN_SETTING: settingSetup(); break;
+      case SCREEN_ABOUT: about(); break;
+      default: break;
+    }
+    screenNeedsSetup = false;
+  }
 
-    if (current_screen == 0) {
-     
-      u8g2.drawXBMP(0, 22, 128, 21, bitmap_item_sel_outline);
+  switch (activeScreen) {
+    case SCREEN_SCANNER: scannerLoop(); break;
+    case SCREEN_ANALYZER: analyzerLoop(); break;
+    case SCREEN_JAMMER: jammerLoop(); break;
+    case SCREEN_BLACKOUT: blackoutLoop(); break;
+    case SCREEN_BLE_JAMMER: blejammerLoop(); break;
+    case SCREEN_SPOOFER: spooferLoop(); break;
+    case SCREEN_SOURAPPLE: sourappleLoop(); break;
+    case SCREEN_BLESCAN: blescanLoop(); break;
+    case SCREEN_WIFISCAN: wifiscanLoop(); break;
+    case SCREEN_SETTING: settingLoop(); break;
+    case SCREEN_ABOUT: /* ya dibujado en setup */ break;
+    default: break;
+  }
 
-      u8g2.setFont(u8g_font_7x14);
-      u8g2.drawStr(25, 15, menu_items[item_sel_previous]); 
-      u8g2.drawXBMP( 4, 2, 16, 16, bitmap_icons[item_sel_previous]);          
+  // Salida:
+  // - About: click corto vuelve
+  // - Otros: long-press de SELECT vuelve (no interfiere con Setting)
+  if (activeScreen == SCREEN_ABOUT) {
+    if (selectPressedEvent) {
+      activeScreen = SCREEN_MENU;
+      screenNeedsSetup = false;
+      drawMenu();
+    }
+  } else {
+    if (selectLongPressEvent) {
+      activeScreen = SCREEN_MENU;
+      screenNeedsSetup = false;
+      drawMenu();
+    }
+  }
 
-      u8g2.setFont(u8g_font_7x14B);    
-      u8g2.drawStr(25, 15+20+2, menu_items[item_selected]);   
-      u8g2.drawXBMP( 4, 24, 16, 16, bitmap_icons[item_selected]);     
-
-      u8g2.setFont(u8g_font_7x14);     
-      u8g2.drawStr(25, 15+20+20+2+2, menu_items[item_sel_next]);   
-      u8g2.drawXBMP( 4, 46, 16, 16, bitmap_icons[item_sel_next]);  
-
-      u8g2.drawXBMP(128-8, 0, 8, 64, bitmap_scrollbar_background);
-
-      u8g2.drawBox(125, 64/NUM_ITEMS * item_selected, 3, 64/NUM_ITEMS);             
-    } 
-    
-  u8g2.sendBuffer(); 
-
+  // Evitar WDT/reset por loop “demasiado apretado”
+  delay(1);
 }
