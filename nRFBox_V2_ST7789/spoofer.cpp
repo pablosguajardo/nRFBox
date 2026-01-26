@@ -5,6 +5,7 @@
    
 #include <Arduino.h> 
 #include "spoofer.h"
+#include "board_pins.h"
 
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 extern Adafruit_NeoPixel pixels;
@@ -12,11 +13,11 @@ extern Adafruit_NeoPixel pixels;
 BLEAdvertising *pAdvertising;  
 std::string devices_uuid = "00003082-0000-1000-9000-00805f9b34fb";
 
-const int deviceTypeNextPin = 27; 
-const int deviceTypePrevPin = 25; 
-const int advTypeNextPin = 33;    
-//const int advTypePrevPin = 27;    
-const int advControlPin = 26;     
+const int deviceTypeNextPin = NRFBOX_BTN_UP_PIN;
+const int deviceTypePrevPin = NRFBOX_BTN_DOWN_PIN;
+const int advTypeNextPin = NRFBOX_BTN_SELECT_PIN;
+//const int advTypePrevPin = NRFBOX_BTN_SELECT_PIN;
+const int advControlPin = NRFBOX_BTN_BACK_PIN;
 
 uint32_t delayMillisecond = 1000;
 unsigned long lastDebounceTimeNext = 0;

@@ -7,13 +7,14 @@
 #include "display_compat.h"
 
 #include "setting.h"
+#include "board_pins.h"
 
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 extern Adafruit_NeoPixel pixels;
 
-#define BUTTON_UP 4
-#define BUTTON_DOWN 18
-#define BUTTON_SELECT 16
+#define BUTTON_UP NRFBOX_BTN_UP_PIN
+#define BUTTON_DOWN NRFBOX_BTN_DOWN_PIN
+#define BUTTON_SELECT NRFBOX_BTN_SELECT_PIN
 
 #define EEPROM_ADDRESS_NEOPIXEL 0
 #define EEPROM_ADDRESS_BRIGHTNESS 1

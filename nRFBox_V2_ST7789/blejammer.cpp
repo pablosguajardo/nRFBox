@@ -5,6 +5,7 @@
 
 #include <Arduino.h> 
 #include "blejammer.h"
+#include "board_pins.h"
 
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 
@@ -17,7 +18,7 @@ extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 #define CE_PIN_3  15
 #define CSN_PIN_3 2
 
-#define MODE_BUTTON 26
+#define MODE_BUTTON NRFBOX_BTN_SELECT_PIN
 
 RF24 radio1(CE_PIN_1, CSN_PIN_1, 16000000);
 RF24 radio2(CE_PIN_2, CSN_PIN_2, 16000000);

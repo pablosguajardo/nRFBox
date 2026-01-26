@@ -19,9 +19,11 @@
 
 #include <Arduino.h>
 
-// Debe ir ANTES de TFT_eSPI.h para que USER_SETUP_LOADED (y el resto del setup local)
-// aplique correctamente. Esto suele reducir MUCHO el tamaño (fuentes/feature flags).
-#include "tft_setup.h"
+/*
+  Debe ir ANTES de TFT_eSPI.h para que USER_SETUP_LOADED (y el resto del setup local)
+  aplique correctamente. Esto suele reducir MUCHO el tamaño (fuentes/feature flags).
+*/
+#include "ui_config.h"
 
 #include <SPI.h>
 #include <TFT_eSPI.h>
@@ -91,12 +93,12 @@ public:
 
     _tft.init();
     _tft.setRotation(0);
-    // Evitar fillScreen() completo: en algunos ESP32/ST7789 puede disparar INT_WDT
-    // si la librería mantiene secciones críticas durante transfers largos.
-    // Limpiaremos sólo la ventana emulada (128x64) con clearBuffer().
-    //_tft.fillScreen(_bg);
 
-    // Centrar el "lienzo" original 128x64 en el TFT
+    // Limpiar TODO el TFT para evitar que quede "basura" (fondo blanco) fuera del
+    // canvas lógico. Lo hacemos en tiras + yield() para evitar WDT.
+    clearFullTft();
+
+    // Centrar el "lienzo" lógico (NRFBOX_UI_W/NRFBOX_UI_H) en el TFT
     _originX = (_tft.width()  - SCREEN_W) / 2;
     _originY = (_tft.height() - SCREEN_H) / 2;
     if (_originX < 0) _originX = 0;
@@ -254,8 +256,23 @@ public:
   }
 
 private:
-  static constexpr int16_t SCREEN_W = 128;
-  static constexpr int16_t SCREEN_H = 64;
+  // Canvas lógico U8g2 (unificado en ui_config.h)
+  static constexpr int16_t SCREEN_W = NRFBOX_UI_W;
+  static constexpr int16_t SCREEN_H = NRFBOX_UI_H;
+
+  void clearFullTft() {
+    // Algunos drivers hacen secciones críticas largas en fillScreen/flood.
+    // Esto reduce la chance de INT_WDT.
+    static constexpr int16_t STRIP_H = 16;
+    const int16_t w = _tft.width();
+    const int16_t h = _tft.height();
+
+    for (int16_t y = 0; y < h; y += STRIP_H) {
+      const int16_t hh = (y + STRIP_H <= h) ? STRIP_H : (h - y);
+      _tft.fillRect(0, y, w, hh, _bg);
+      yield();
+    }
+  }
 
   int16_t currentFontHeight() const {
     // Con la fuente interna 1 (GLCD) la altura efectiva es ~8px

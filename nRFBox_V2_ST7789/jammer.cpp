@@ -5,11 +5,13 @@
    
 #include <Arduino.h> 
 #include "jammer.h"
+#include "ui_config.h"
+#include "board_pins.h"
 
-#define BT1 33  // channels
-#define BT2 26  // data rate
-#define BT3 27  // jamming
-#define BT4 25  // PA level
+#define BT1 NRFBOX_BTN_UP_PIN      // channels
+#define BT2 NRFBOX_BTN_SELECT_PIN  // data rate
+#define BT3 NRFBOX_BTN_DOWN_PIN    // jamming
+#define BT4 NRFBOX_BTN_BACK_PIN    // PA level
 
 
 #define CE_A  5
@@ -25,8 +27,8 @@ RF24 radioA(CE_A, CSN_A, 16000000);
 RF24 radioB(CE_B, CSN_B, 16000000);
 RF24 radioC(CE_C, CSN_C, 16000000);
 
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+/* Canvas UI unificado en ui_config.h:
+   NRFBOX_UI_W / NRFBOX_UI_H */
 
 
 const int     num_channels = 64;

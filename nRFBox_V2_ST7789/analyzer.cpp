@@ -6,6 +6,7 @@
 #include <Arduino.h> 
 #include "analyzer.h"
 #include "setting.h"
+#include "ui_config.h"
 
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 extern Adafruit_NeoPixel pixels;
@@ -16,8 +17,8 @@ extern Adafruit_NeoPixel pixels;
 #define NRF24_RF_SETUP    0x06
 #define NRF24_RPD         0x09
 
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+/* Canvas UI unificado en ui_config.h:
+   NRFBOX_UI_W / NRFBOX_UI_H */
 
 #define N 128
 uint8_t values[N];
@@ -177,19 +178,19 @@ void analyzerLoop(){
     }
 
     u8g2.clearBuffer();
-    int barWidth = SCREEN_WIDTH / N;
+    int barWidth = NRFBOX_UI_W / N;
     int x = 0;
     for (int i = 0; i < N; ++i) {
-        int v = 63 - values[i] * 3;
+        int v = (NRFBOX_UI_H - 1) - values[i] * 3;
         if (v < 0) {
             v = 0;
         }
-        u8g2.drawVLine(x, v - 10, 64 - v);
+        u8g2.drawVLine(x, v - 10, NRFBOX_UI_H - v);
         x += barWidth;
     }
 
     u8g2.setFont(u8g2_font_ncenB08_tr);
-    u8g2.setCursor(0, 64);
+    u8g2.setCursor(0, NRFBOX_UI_H);
     u8g2.print("1...5...10...25..50...80...128");
     u8g2.sendBuffer();
 

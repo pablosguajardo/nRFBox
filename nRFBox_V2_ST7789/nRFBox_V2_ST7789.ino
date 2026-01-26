@@ -12,6 +12,8 @@
 
 #include <SPI.h>
 #include "display_compat.h"
+#include "ui_config.h"
+#include "board_pins.h"
 
 #include "icon.h"
 #include "neopixel.h"
@@ -26,16 +28,7 @@
 #include "blescan.h"
 #include "wifiscan.h"
 #include "blackout.h"
-/*
-#define TFT_BL           12    // LED back-light control pin
-#define TFT_MISO -1      // -1 es no usado.
-#define TFT_MOSI 35      // Mosi SDA
-#define TFT_SCLK 19      // Reloj
-#define TFT_CS   15       // Chip Select
-#define TFT_DC    13      // Data Comand.
-#define TFT_RST   14      // Reset.
 
-*/
 /*
   RF24 globales deshabilitados
 
@@ -53,11 +46,10 @@
 //#define CE_PIN_C  15
 //#define CSN_PIN_C 2
 
-#define BUTTON_UP_PIN 4
-// En tu ESP32-S3, GPIO26/27/33 provocaban INT_WDT (probable conflicto con Flash/PSRAM).
-// Reubicamos botones a GPIO seguros según tu cableado nuevo:
-#define BUTTON_SELECT_PIN 16
-#define BUTTON_DOWN_PIN 18
+#define BUTTON_UP_PIN NRFBOX_BTN_UP_PIN
+// Pines unificados en board_pins.h (evita GPIO conflictivos en ESP32-S3)
+#define BUTTON_SELECT_PIN NRFBOX_BTN_SELECT_PIN
+#define BUTTON_DOWN_PIN NRFBOX_BTN_DOWN_PIN
 
 // Diagnóstico
 // - NRFBOX_DIAG_HOLD_AFTER_RESET: congela después de mostrar el motivo de reset.
@@ -90,7 +82,7 @@
 //U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0); // [full framebuffer, size = 1024 bytes]
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
-Adafruit_NeoPixel pixels(1, 14, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel pixels(1, NRFBOX_NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
 
 extern uint8_t oledBrightness;
 
@@ -222,36 +214,62 @@ static void drawMenu() {
 
   u8g2.clearBuffer();
 
+  // UI original estaba diseñada para un “canvas” 128x64.
+  // Si NRFBOX_UI_W/H cambia, centramos ese layout dentro del canvas actual.
+  const int16_t baseX = (NRFBOX_UI_W - NRFBOX_UI_DESIGN_W) / 2;
+  const int16_t baseY = (NRFBOX_UI_H - NRFBOX_UI_DESIGN_H) / 2;
+
 #if NRFBOX_UI_NO_BITMAPS
   // Menú minimalista (solo texto) para evitar WDT por dibujo de XBM
   u8g2.setFont(u8g2_font_6x10_tf);
-  u8g2.drawStr(0, 12, menu_items[item_sel_previous]);
+  u8g2.drawStr(baseX + 0, baseY + 12, menu_items[item_sel_previous]);
 
-  u8g2.drawStr(0, 32, ">");
-  u8g2.drawStr(12, 32, menu_items[item_selected]);
+  u8g2.drawStr(baseX + 0, baseY + 32, ">");
+  u8g2.drawStr(baseX + 12, baseY + 32, menu_items[item_selected]);
 
-  u8g2.drawStr(0, 52, menu_items[item_sel_next]);
+  u8g2.drawStr(baseX + 0, baseY + 52, menu_items[item_sel_next]);
 
   u8g2.sendBuffer();
   return;
 #endif
 
-  u8g2.drawXBMP(0, 22, 128, 21, bitmap_item_sel_outline);
+  // En TFT, algunos bitmaps del menú (outline/scrollbar) se ven con artefactos
+  // (puntitos, “flechitas” pequeñas). En lugar de XBM, dibujamos la selección y
+  // el scrollbar con primitivas: queda más limpio y legible.
+  const int16_t selX = baseX + 0;
+  const int16_t selY = baseY + 22;
+  const int16_t selW = NRFBOX_UI_DESIGN_W - 8; // dejamos el área del scrollbar
+  const int16_t selH = 21;
 
+  // Fila anterior (normal)
+  u8g2.setTextColor(TFT_WHITE, TFT_BLACK);
   u8g2.setFont(u8g_font_7x14);
-  u8g2.drawStr(25, 15, menu_items[item_sel_previous]);
-  u8g2.drawXBMP(4, 2, 16, 16, bitmap_icons[item_sel_previous]);
+  u8g2.drawStr(baseX + 25, baseY + 15, menu_items[item_sel_previous]);
+  u8g2.drawXBMP(baseX + 4, baseY + 2, 16, 16, bitmap_icons[item_sel_previous]);
 
+  // Fila seleccionada: fondo blanco + texto/icono negros
+  u8g2.setTextColor(TFT_WHITE, TFT_BLACK);
+  u8g2.drawBox(selX, selY, selW, selH);
+
+  u8g2.setTextColor(TFT_BLACK, TFT_WHITE);
   u8g2.setFont(u8g_font_7x14B);
-  u8g2.drawStr(25, 15 + 20 + 2, menu_items[item_selected]);
-  u8g2.drawXBMP(4, 24, 16, 16, bitmap_icons[item_selected]);
+  u8g2.drawStr(baseX + 25, baseY + 15 + 20 + 2, menu_items[item_selected]);
+  u8g2.drawXBMP(baseX + 4, baseY + 24, 16, 16, bitmap_icons[item_selected]);
 
+  // Fila siguiente (normal)
+  u8g2.setTextColor(TFT_WHITE, TFT_BLACK);
   u8g2.setFont(u8g_font_7x14);
-  u8g2.drawStr(25, 15 + 20 + 20 + 2 + 2, menu_items[item_sel_next]);
-  u8g2.drawXBMP(4, 46, 16, 16, bitmap_icons[item_sel_next]);
+  u8g2.drawStr(baseX + 25, baseY + 15 + 20 + 20 + 2 + 2, menu_items[item_sel_next]);
+  u8g2.drawXBMP(baseX + 4, baseY + 46, 16, 16, bitmap_icons[item_sel_next]);
 
-  u8g2.drawXBMP(128 - 8, 0, 8, 64, bitmap_scrollbar_background);
-  u8g2.drawBox(125, 64 / NUM_ITEMS * item_selected, 3, 64 / NUM_ITEMS);
+  // Scrollbar simple (sin bitmap)
+  const int16_t sbX = baseX + (NRFBOX_UI_DESIGN_W - 3);
+  u8g2.drawVLine(sbX + 1, baseY + 0, NRFBOX_UI_DESIGN_H);
+
+  int16_t knobH = (NRFBOX_UI_DESIGN_H / NUM_ITEMS);
+  if (knobH < 4) knobH = 4;
+  int16_t knobY = baseY + knobH * item_selected;
+  u8g2.drawBox(sbX, knobY, 3, knobH);
 
   u8g2.sendBuffer();
 }
@@ -304,19 +322,19 @@ void setup() {
 
   u8g2.setFont(u8g2_font_ncenB14_tr);
   int16_t nameWidth = u8g2.getUTF8Width("nRF-BOX");
-  int16_t nameX = (128 - nameWidth) / 2;
+  int16_t nameX = (NRFBOX_UI_W - nameWidth) / 2;
   u8g2.setCursor(nameX, 25);
   u8g2.print("nRF-BOX");
 
   u8g2.setFont(u8g2_font_ncenB08_tr);
   int16_t creditWidth = u8g2.getUTF8Width("by CiferTech");
-  int16_t creditX = (106 - creditWidth) / 2;
+  int16_t creditX = (NRFBOX_UI_W - creditWidth) / 2;
   u8g2.setCursor(creditX, 40);
   u8g2.print("by CiferTech");
 
   u8g2.setFont(u8g2_font_6x10_tf);
   int16_t versionWidth = u8g2.getUTF8Width("v2.5.0");
-  int16_t versionX = (128 - versionWidth) / 2;
+  int16_t versionX = (NRFBOX_UI_W - versionWidth) / 2;
   u8g2.setCursor(versionX, 60);
   u8g2.print("v2.5.0");
 
@@ -325,7 +343,7 @@ void setup() {
 
   u8g2.clearBuffer();
 
-  u8g2.drawXBMP(0, 0, 128, 64, logo_cifer);
+  u8g2.drawXBMP(0, 0, NRFBOX_UI_DESIGN_W, NRFBOX_UI_DESIGN_H, logo_cifer);
 
   u8g2.sendBuffer();
   delay(250);

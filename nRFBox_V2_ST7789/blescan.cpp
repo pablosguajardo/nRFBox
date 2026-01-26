@@ -5,13 +5,14 @@
 
 #include <Arduino.h> 
 #include "blescan.h"
+#include "board_pins.h"
 
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 
-#define BUTTON_PIN_UP 26
-#define BUTTON_PIN_DOWN 33
-#define BUTTON_PIN_SELECT 27
-#define BUTTON_PIN_BACK 25
+#define BUTTON_PIN_UP NRFBOX_BTN_UP_PIN
+#define BUTTON_PIN_DOWN NRFBOX_BTN_DOWN_PIN
+#define BUTTON_PIN_SELECT NRFBOX_BTN_SELECT_PIN
+#define BUTTON_PIN_BACK NRFBOX_BTN_BACK_PIN
 
 BLEScan* scan;
 BLEScanResults results;
