@@ -51,11 +51,14 @@ void toggleOption(int option) {
   }
 }
 
-void handleButtons() {
+bool handleButtons() {
+  bool changed = false;
+
   if (!digitalRead(BUTTON_UP)) {
     if (!buttonUpPressed) {
       buttonUpPressed = true;
       currentOption = (currentOption - 1 + totalOptions) % totalOptions;
+      changed = true;
     }
   } else {
     buttonUpPressed = false;
@@ -65,6 +68,7 @@ void handleButtons() {
     if (!buttonDownPressed) {
       buttonDownPressed = true;
       currentOption = (currentOption + 1) % totalOptions;
+      changed = true;
     }
   } else {
     buttonDownPressed = false;
@@ -74,10 +78,13 @@ void handleButtons() {
     if (!buttonSelectPressed) {
       buttonSelectPressed = true;
       toggleOption(currentOption);
+      changed = true;
     }
   } else {
     buttonSelectPressed = false;
   }
+
+  return changed;
 }
 
 void displayMenu() {
@@ -134,6 +141,21 @@ void settingSetup() {
 }
 
 void settingLoop() {
-  handleButtons();
-  displayMenu();
+  static bool first = true;
+  static int lastOption = -1;
+  static bool lastNeo = false;
+  static uint8_t lastBright = 0;
+
+  bool changed = handleButtons();
+
+  if (first || changed || currentOption != lastOption || neoPixelActive != lastNeo || oledBrightness != lastBright) {
+    displayMenu();
+    lastOption = currentOption;
+    lastNeo = neoPixelActive;
+    lastBright = oledBrightness;
+    first = false;
+  }
+
+  // Evita que el loop dibuje “a máxima velocidad” (reduce flicker y carga SPI)
+  delay(10);
 }

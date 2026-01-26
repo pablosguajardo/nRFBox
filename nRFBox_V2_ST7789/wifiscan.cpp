@@ -62,88 +62,121 @@ void wifiscanSetup() {
 
 void wifiscanLoop() {
   unsigned long currentMillis = millis();
+  bool needRedraw = false;
 
+  // --- Scan (una vez) ---
   if (!isScanComplete && currentMillis - scan_StartTime < scanTimeout) {
-    int foundNetworks = WiFi.scanNetworks();
+    int foundNetworks = WiFi.scanNetworks(); // (en ESP32 suele ser bloqueante)
     if (foundNetworks >= 0) {
       isScanComplete = true;
+      needRedraw = true;
     }
   }
 
+  // --- Botones (con debounce) ---
   if (currentMillis - lastButtonPress > debounceTime) {
     if (digitalRead(BTN_PIN_UP) == LOW) {
-      if (currentIndex > 0) {
-        currentIndex--;
-        if (currentIndex < listStartIndex) {
-          listStartIndex--;
+      if (!isDetailView) {
+        if (currentIndex > 0) {
+          currentIndex--;
+          if (currentIndex < listStartIndex) listStartIndex--;
+          needRedraw = true;
         }
       }
       lastButtonPress = currentMillis;
     } else if (digitalRead(BTN_PIN_DOWN) == LOW) {
-      if (currentIndex < WiFi.scanComplete() - 1) {
-        currentIndex++;
-        if (currentIndex >= listStartIndex + 5) {
-          listStartIndex++;
+      if (!isDetailView) {
+        if (currentIndex < WiFi.scanComplete() - 1) {
+          currentIndex++;
+          if (currentIndex >= listStartIndex + 5) listStartIndex++;
+          needRedraw = true;
         }
       }
       lastButtonPress = currentMillis;
     } else if (digitalRead(BTN_PIN_SELECT) == LOW) {
-      isDetailView = true;
-      lastButtonPress = currentMillis;
-    }
-  }
-
-  if (!isDetailView && isScanComplete) {
-    u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_6x10_tr);
-    u8g2.drawStr(0, 10, "Wi-Fi Networks:");
-
-    int networkCount = WiFi.scanComplete();
-    for (int i = 0; i < 5; i++) {
-      int currentNetworkIndex = i + listStartIndex;
-      if (currentNetworkIndex >= networkCount) break;
-
-      String networkName = WiFi.SSID(currentNetworkIndex);
-      int rssi = WiFi.RSSI(currentNetworkIndex);
-
-      String networkInfo = networkName.substring(0, 7);
-      String networkrssi = " | RSSI " + String(rssi);
-
-      if (currentNetworkIndex == currentIndex) {
-        u8g2.drawStr(0, 20 + i * 10, ">");
+      if (!isDetailView) {
+        isDetailView = true;
+        needRedraw = true;
       }
-      u8g2.drawStr(10, 20 + i * 10, networkInfo.c_str());
-      u8g2.drawStr(50, 20 + i * 10, networkrssi.c_str());
-    }
-    u8g2.sendBuffer();
-  }
-
-  if (isDetailView) {
-    String networkName = WiFi.SSID(currentIndex);
-    String networkBSSID = WiFi.BSSIDstr(currentIndex);
-    int rssi = WiFi.RSSI(currentIndex);
-    int channel = WiFi.channel(currentIndex);
-
-    u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_6x10_tr);
-    u8g2.drawStr(0, 10, "Network Details:");
-
-    u8g2.setFont(u8g2_font_5x8_tr);
-    String name = "SSID: " + networkName;
-    String bssid = "BSSID: " + networkBSSID;
-    String signal = "RSSI: " + String(rssi);
-    String ch = "Channel: " + String(channel);
-
-    u8g2.drawStr(0, 20, name.c_str());
-    u8g2.drawStr(0, 30, bssid.c_str());
-    u8g2.drawStr(0, 40, signal.c_str());
-    u8g2.drawStr(0, 50, ch.c_str());
-    u8g2.drawStr(0, 60, "Press LEFT to go back");
-    u8g2.sendBuffer();
-
-    if (digitalRead(BTN_PIN_BACK) == LOW) {
-      isDetailView = false;
+      lastButtonPress = currentMillis;
+    } else if (digitalRead(BTN_PIN_BACK) == LOW) {
+      if (isDetailView) {
+        isDetailView = false;
+        needRedraw = true;
+      }
       lastButtonPress = currentMillis;
     }
   }
+
+  // --- Redibujar sólo si cambió estado/selección (evita flicker en ST7789) ---
+  static bool lastDetailView = false;
+  static bool lastScanComplete = false;
+  static int lastIndex = -1;
+  static int lastStart = -1;
+
+  if (isDetailView != lastDetailView ||
+      isScanComplete != lastScanComplete ||
+      currentIndex != lastIndex ||
+      listStartIndex != lastStart) {
+    needRedraw = true;
+  }
+
+  if (needRedraw) {
+    if (!isDetailView && isScanComplete) {
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_6x10_tr);
+      u8g2.drawStr(0, 10, "Wi-Fi Networks:");
+
+      int networkCount = WiFi.scanComplete();
+      for (int i = 0; i < 5; i++) {
+        int currentNetworkIndex = i + listStartIndex;
+        if (currentNetworkIndex >= networkCount) break;
+
+        String networkName = WiFi.SSID(currentNetworkIndex);
+        int rssi = WiFi.RSSI(currentNetworkIndex);
+
+        String networkInfo = networkName.substring(0, 7);
+        String networkrssi = " | RSSI " + String(rssi);
+
+        if (currentNetworkIndex == currentIndex) {
+          u8g2.drawStr(0, 20 + i * 10, ">");
+        }
+        u8g2.drawStr(10, 20 + i * 10, networkInfo.c_str());
+        u8g2.drawStr(50, 20 + i * 10, networkrssi.c_str());
+      }
+      u8g2.sendBuffer();
+    }
+
+    if (isDetailView) {
+      String networkName = WiFi.SSID(currentIndex);
+      String networkBSSID = WiFi.BSSIDstr(currentIndex);
+      int rssi = WiFi.RSSI(currentIndex);
+      int channel = WiFi.channel(currentIndex);
+
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_6x10_tr);
+      u8g2.drawStr(0, 10, "Network Details:");
+
+      u8g2.setFont(u8g2_font_5x8_tr);
+      String name = "SSID: " + networkName;
+      String bssid = "BSSID: " + networkBSSID;
+      String signal = "RSSI: " + String(rssi);
+      String ch = "Channel: " + String(channel);
+
+      u8g2.drawStr(0, 20, name.c_str());
+      u8g2.drawStr(0, 30, bssid.c_str());
+      u8g2.drawStr(0, 40, signal.c_str());
+      u8g2.drawStr(0, 50, ch.c_str());
+      u8g2.drawStr(0, 60, "Press LEFT to go back");
+      u8g2.sendBuffer();
+    }
+
+    lastDetailView = isDetailView;
+    lastScanComplete = isScanComplete;
+    lastIndex = currentIndex;
+    lastStart = listStartIndex;
+  }
+
+  // Evita loop ultra-rápido (reduce flicker y carga SPI)
+  delay(10);
 }
