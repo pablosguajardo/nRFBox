@@ -53,17 +53,35 @@
 //#define CE_PIN_C  15
 //#define CSN_PIN_C 2
 
-#define BUTTON_UP_PIN 26
-// Unificar con el resto del proyecto (setting/jammer/etc.): el SELECT es GPIO27.
-// Si quedaba en 32 (pin flotante o no conectado) el firmware entraba en los while()
-// esperando “soltar el botón” y terminaba reseteando por WDT.
-#define BUTTON_SELECT_PIN 27
-#define BUTTON_DOWN_PIN 33
+#define BUTTON_UP_PIN 4
+// En tu ESP32-S3, GPIO26/27/33 provocaban INT_WDT (probable conflicto con Flash/PSRAM).
+// Reubicamos botones a GPIO seguros según tu cableado nuevo:
+#define BUTTON_SELECT_PIN 16
+#define BUTTON_DOWN_PIN 18
 
-// Diagnóstico: dejar el equipo “congelado” después de mostrar el motivo de reset.
-// Si AÚN ASÍ se reinicia, el INT_WDT está ocurriendo aunque estemos sólo en delay()
-// (o sea: no es el resto del splash/menú, es algo más bajo nivel).
-#define NRFBOX_DIAG_HOLD_AFTER_RESET 1
+// Diagnóstico
+// - NRFBOX_DIAG_HOLD_AFTER_RESET: congela después de mostrar el motivo de reset.
+// - NRFBOX_SKIP_SPLASH: salta pantallas de splash/logo para aislar INT_WDT.
+#define NRFBOX_DIAG_HOLD_AFTER_RESET 0
+#define NRFBOX_SKIP_SPLASH 0
+
+// Diagnóstico UI: deshabilita bitmaps del menú (XBMP) para ver si el INT_WDT
+// viene de las rutinas de dibujo (muy probable en algunos ST7789/S3).
+#define NRFBOX_UI_NO_BITMAPS 0
+
+// Diagnóstico: traza por etapas en pantalla (muy liviano) para ubicar EXACTAMENTE
+// en qué punto ocurre el INT_WDT.
+#define NRFBOX_DIAG_STAGE_TRACE 0
+
+// Diagnóstico HW (ESP32-S3):
+// En muchos módulos ESP32-S3, GPIO26..GPIO32 están usados por la Flash/PSRAM.
+// Si configuramos GPIO26/27 como botones, podemos romper el fetch de código y caer en INT_WDT.
+// Con esto deshabilitamos botones para confirmar si el WDT viene por ahí.
+#define NRFBOX_SKIP_BUTTONS 0
+
+// Diagnóstico: si está en 1, se congela inmediatamente después de dibujar el menú.
+// (lo dejamos en 0 para que pueda avanzar y ver hasta dónde llega)
+#define NRFBOX_DIAG_HOLD_AFTER_MENU_DRAW 0
 
 //RF24 RadioA(CE_PIN_A, CSN_PIN_A);
 //RF24 RadioB(CE_PIN_B, CSN_PIN_B);
@@ -204,6 +222,20 @@ static void drawMenu() {
 
   u8g2.clearBuffer();
 
+#if NRFBOX_UI_NO_BITMAPS
+  // Menú minimalista (solo texto) para evitar WDT por dibujo de XBM
+  u8g2.setFont(u8g2_font_6x10_tf);
+  u8g2.drawStr(0, 12, menu_items[item_sel_previous]);
+
+  u8g2.drawStr(0, 32, ">");
+  u8g2.drawStr(12, 32, menu_items[item_selected]);
+
+  u8g2.drawStr(0, 52, menu_items[item_sel_next]);
+
+  u8g2.sendBuffer();
+  return;
+#endif
+
   u8g2.drawXBMP(0, 22, 128, 21, bitmap_item_sel_outline);
 
   u8g2.setFont(u8g_font_7x14);
@@ -254,12 +286,20 @@ void setup() {
   u8g2.sendBuffer();
   delay(800);
 
+#if NRFBOX_DIAG_STAGE_TRACE
+  // Marca "A": justo después del delay de Reset
+  u8g2.setCursor(0, 60);
+  u8g2.print("A");
+  delay(150);
+#endif
+
 #if NRFBOX_DIAG_HOLD_AFTER_RESET
   while (true) {
     delay(1000);
   }
 #endif
 
+#if !NRFBOX_SKIP_SPLASH
   u8g2.clearBuffer();
 
   u8g2.setFont(u8g2_font_ncenB14_tr);
@@ -289,17 +329,55 @@ void setup() {
 
   u8g2.sendBuffer();
   delay(250);
+#endif
 
+#if !NRFBOX_SKIP_BUTTONS
   pinMode(BUTTON_UP_PIN, INPUT_PULLUP);
   pinMode(BUTTON_SELECT_PIN, INPUT_PULLUP);
   pinMode(BUTTON_DOWN_PIN, INPUT_PULLUP);
+#endif
+
+#if NRFBOX_DIAG_STAGE_TRACE
+  // Marca "B": después de (intentar) configurar botones
+  u8g2.setCursor(10, 60);
+  u8g2.print("B");
+  delay(150);
+#endif
 
   activeScreen = SCREEN_MENU;
   screenNeedsSetup = false;
+
+#if NRFBOX_DIAG_STAGE_TRACE
+  // Marca "C": justo antes de dibujar menú
+  u8g2.setCursor(20, 60);
+  u8g2.print("C");
+  delay(150);
+#endif
+
   drawMenu();
+
+#if NRFBOX_DIAG_STAGE_TRACE
+  // Marca "D": si ves esta letra, drawMenu() terminó sin colgarse
+  u8g2.setCursor(30, 60);
+  u8g2.print("D");
+  delay(150);
+#endif
+
+#if NRFBOX_DIAG_HOLD_AFTER_MENU_DRAW
+  while (true) {
+    delay(1000);
+  }
+#endif
 }
 
 void loop() {
+
+#if NRFBOX_SKIP_BUTTONS
+  // Si deshabilitamos botones, no leemos esos GPIO (evita tocar pines conflictivos).
+  // Solo mantenemos vivo el sistema.
+  delay(50);
+  return;
+#endif
   // Ignorar botones al arranque: evita entrar solo a pantallas por ruido o
   // porque el botón está presionado durante el boot.
   static uint32_t bootIgnoreUntilMs = 0;

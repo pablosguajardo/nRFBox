@@ -11,9 +11,9 @@
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 extern Adafruit_NeoPixel pixels;
 
-#define BUTTON_UP 26
-#define BUTTON_DOWN 33
-#define BUTTON_SELECT 27
+#define BUTTON_UP 4
+#define BUTTON_DOWN 18
+#define BUTTON_SELECT 16
 
 #define EEPROM_ADDRESS_NEOPIXEL 0
 #define EEPROM_ADDRESS_BRIGHTNESS 1
