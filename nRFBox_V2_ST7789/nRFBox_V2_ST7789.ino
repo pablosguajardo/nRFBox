@@ -60,6 +60,11 @@
 #define BUTTON_SELECT_PIN 27
 #define BUTTON_DOWN_PIN 33
 
+// Diagnóstico: dejar el equipo “congelado” después de mostrar el motivo de reset.
+// Si AÚN ASÍ se reinicia, el INT_WDT está ocurriendo aunque estemos sólo en delay()
+// (o sea: no es el resto del splash/menú, es algo más bajo nivel).
+#define NRFBOX_DIAG_HOLD_AFTER_RESET 1
+
 //RF24 RadioA(CE_PIN_A, CSN_PIN_A);
 //RF24 RadioB(CE_PIN_B, CSN_PIN_B);
 //RF24 RadioC(CE_PIN_C, CSN_PIN_C);
@@ -248,6 +253,12 @@ void setup() {
   u8g2.print(resetReasonToStr(esp_reset_reason()));
   u8g2.sendBuffer();
   delay(800);
+
+#if NRFBOX_DIAG_HOLD_AFTER_RESET
+  while (true) {
+    delay(1000);
+  }
+#endif
 
   u8g2.clearBuffer();
 

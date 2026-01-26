@@ -111,8 +111,19 @@ public:
   // U8g2 API (subset)
 
   void clearBuffer() {
-    // Limpia SOLO el área 128x64 (la ventana emulada)
-    _tft.fillRect(_originX, _originY, SCREEN_W, SCREEN_H, _bg);
+    // Limpia SOLO el área 128x64 (la ventana emulada).
+    //
+    // Nota: un fillRect grande puede disparar INT_WDT en algunos ESP32/ESP32-S3
+    // si el driver mantiene secciones críticas durante transfers largos.
+    // Por eso limpiamos en "tiras" y cedemos CPU entre cada una.
+    static constexpr int16_t STRIP_H = 8;
+
+    for (int16_t y = 0; y < SCREEN_H; y += STRIP_H) {
+      const int16_t h = (y + STRIP_H <= SCREEN_H) ? STRIP_H : (SCREEN_H - y);
+      _tft.fillRect(_originX, _originY + y, SCREEN_W, h, _bg);
+      yield();
+    }
+
     _tft.setTextColor(_fg, _bg);
   }
 
