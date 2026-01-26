@@ -91,7 +91,10 @@ public:
 
     _tft.init();
     _tft.setRotation(0);
-    _tft.fillScreen(_bg);
+    // Evitar fillScreen() completo: en algunos ESP32/ST7789 puede disparar INT_WDT
+    // si la librería mantiene secciones críticas durante transfers largos.
+    // Limpiaremos sólo la ventana emulada (128x64) con clearBuffer().
+    //_tft.fillScreen(_bg);
 
     // Centrar el "lienzo" original 128x64 en el TFT
     _originX = (_tft.width()  - SCREEN_W) / 2;
@@ -153,8 +156,50 @@ public:
   }
 
   void drawXBMP(int16_t x, int16_t y, int16_t w, int16_t h, const uint8_t *bitmap) {
-    // Bitmaps 1-bit tipo XBM
-    _tft.drawXBitmap(_originX + x, _originY + y, bitmap, w, h, _fg);
+    // Bitmaps 1-bit tipo XBM.
+    //
+    // Importante: la implementación de TFT_eSPI::drawXBitmap() puede ser lenta
+    // para bitmaps grandes (por ejemplo 128x64 del logo) y, en algunos setups,
+    // terminar disparando INT_WDT al no ceder CPU.
+    //
+    // Esta versión dibuja por "runs" horizontales (sólo los bits en 1) y hace
+    // yield() periódicamente para evitar WDT.
+    if (!bitmap || w <= 0 || h <= 0) return;
+
+    const int16_t ax = _originX + x;
+    const int16_t ay = _originY + y;
+    const int bytesPerRow = (w + 7) >> 3;
+
+    // Si no es transparente, primero pintamos el fondo del rectángulo.
+    if (!_bitmapTransparent) {
+      _tft.fillRect(ax, ay, w, h, _bg);
+    }
+
+    for (int16_t row = 0; row < h; ++row) {
+      const uint8_t *rowPtr = bitmap + (row * bytesPerRow);
+
+      int16_t col = 0;
+      while (col < w) {
+        const uint8_t b = rowPtr[col >> 3];
+        const bool on = (b & (1U << (col & 7))) != 0;
+
+        if (!on) {
+          ++col;
+          continue;
+        }
+
+        const int16_t start = col;
+        do {
+          ++col;
+          if (col >= w) break;
+        } while ((rowPtr[col >> 3] & (1U << (col & 7))) != 0);
+
+        _tft.drawFastHLine(ax + start, ay + row, col - start, _fg);
+      }
+
+      // Ceder CPU cada algunas filas para evitar WDT
+      if ((row & 7) == 7) yield();
+    }
   }
 
   void drawBox(int16_t x, int16_t y, int16_t w, int16_t h) {
@@ -178,8 +223,11 @@ public:
     // No-op (el brillo suele manejarse por pin BL / PWM fuera de TFT_eSPI)
   }
 
-  void setBitmapMode(uint8_t /*mode*/) {
-    // No-op
+  void setBitmapMode(uint8_t mode) {
+    // U8g2:
+    // - mode 0: normal (0 bits se interpretan como background)
+    // - mode 1: transparente (0 bits NO dibujan)
+    _bitmapTransparent = (mode == 1);
   }
 
   // Opcional: permitir cambiar colores si en el futuro se requiere
@@ -207,6 +255,8 @@ private:
 
   uint16_t _fg = TFT_WHITE;
   uint16_t _bg = TFT_BLACK;
+
+  bool _bitmapTransparent = true; // modo por defecto: transparente (como setBitmapMode(1))
 
   uint8_t _font = U8G2_FONT_SMALL;
 
