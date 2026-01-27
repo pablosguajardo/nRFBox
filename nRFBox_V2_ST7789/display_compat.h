@@ -39,8 +39,8 @@
 
 // --- IDs de fuentes (mapeo aproximado) ---
 enum U8G2_CompatFont : uint8_t {
-  U8G2_FONT_SMALL = 1, // similar a 5x8 / 6x10
-  U8G2_FONT_MED   = 2, // ~16px alto
+  U8G2_FONT_SMALL = 2, // 1: similar a 5x8 / 6x10
+  U8G2_FONT_MED   = 3, // 2: ~16px alto
 };
 
 // U8g2 font symbols usados en el proyecto (mapeados a IDs anteriores)

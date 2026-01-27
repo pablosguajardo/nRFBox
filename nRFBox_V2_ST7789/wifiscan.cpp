@@ -21,8 +21,8 @@ unsigned long scan_StartTime = 0;
 const unsigned long scanTimeout = 5000;
 bool isScanComplete = false;
 
-unsigned long lastButtonPress = 0;
-unsigned long debounceTime = 200;
+unsigned long lastButtonPress = 0; // (legacy, ya no se usa; se puede eliminar)
+unsigned long debounceTime = 200;  // (legacy, ya no se usa; se puede eliminar)
 
 void wifiscanSetup() {
   Serial.begin(115200);
@@ -73,38 +73,82 @@ void wifiscanLoop() {
     }
   }
 
-  // --- Botones (con debounce) ---
-  if (currentMillis - lastButtonPress > debounceTime) {
-    if (digitalRead(BTN_PIN_UP) == LOW) {
-      if (!isDetailView) {
-        if (currentIndex > 0) {
-          currentIndex--;
-          if (currentIndex < listStartIndex) listStartIndex--;
-          needRedraw = true;
-        }
-      }
-      lastButtonPress = currentMillis;
-    } else if (digitalRead(BTN_PIN_DOWN) == LOW) {
-      if (!isDetailView) {
-        if (currentIndex < WiFi.scanComplete() - 1) {
-          currentIndex++;
-          if (currentIndex >= listStartIndex + 5) listStartIndex++;
-          needRedraw = true;
-        }
-      }
-      lastButtonPress = currentMillis;
-    } else if (digitalRead(BTN_PIN_SELECT) == LOW) {
-      if (!isDetailView) {
+  // --- Botones: click DEBOUNCEADO (estable) ---
+  // Motivo: con INPUT_PULLUP, al SOLTAR el botón puede haber rebote y generar
+  // un “click fantasma” (hace que el detalle aparezca 1s y vuelva al listado).
+  //
+  // Implementación:
+  // - leemos el estado raw (LOW = presionado)
+  // - esperamos que se mantenga estable X ms
+  // - generamos "click" sólo en transición estable a PRESIONADO
+  static bool upStableDown = false, upLastRaw = false;
+  static bool downStableDown = false, downLastRaw = false;
+  static bool selStableDown = false, selLastRaw = false;
+  static bool backStableDown = false, backLastRaw = false;
+
+  static uint32_t upLastChangeMs = 0;
+  static uint32_t downLastChangeMs = 0;
+  static uint32_t selLastChangeMs = 0;
+  static uint32_t backLastChangeMs = 0;
+
+  const uint32_t DEBOUNCE_MS = 35;
+
+  const bool upRawDown = (digitalRead(BTN_PIN_UP) == LOW);
+  const bool downRawDown = (digitalRead(BTN_PIN_DOWN) == LOW);
+  const bool selRawDown = (digitalRead(BTN_PIN_SELECT) == LOW);
+  const bool backRawDown = (digitalRead(BTN_PIN_BACK) == LOW);
+
+  if (upRawDown != upLastRaw) { upLastRaw = upRawDown; upLastChangeMs = currentMillis; }
+  if (downRawDown != downLastRaw) { downLastRaw = downRawDown; downLastChangeMs = currentMillis; }
+  if (selRawDown != selLastRaw) { selLastRaw = selRawDown; selLastChangeMs = currentMillis; }
+  if (backRawDown != backLastRaw) { backLastRaw = backRawDown; backLastChangeMs = currentMillis; }
+
+  bool upClick = false, downClick = false, selClick = false, backClick = false;
+
+  if ((currentMillis - upLastChangeMs) >= DEBOUNCE_MS && upStableDown != upLastRaw) {
+    upStableDown = upLastRaw;
+    if (upStableDown) upClick = true;
+  }
+  if ((currentMillis - downLastChangeMs) >= DEBOUNCE_MS && downStableDown != downLastRaw) {
+    downStableDown = downLastRaw;
+    if (downStableDown) downClick = true;
+  }
+  if ((currentMillis - selLastChangeMs) >= DEBOUNCE_MS && selStableDown != selLastRaw) {
+    selStableDown = selLastRaw;
+    if (selStableDown) selClick = true;
+  }
+  if ((currentMillis - backLastChangeMs) >= DEBOUNCE_MS && backStableDown != backLastRaw) {
+    backStableDown = backLastRaw;
+    if (backStableDown) backClick = true;
+  }
+
+  // Acciones (mismo comportamiento: 1 click entra a detalle, 1 click sale)
+  if (upClick && !isDetailView) {
+    if (currentIndex > 0) {
+      currentIndex--;
+      if (currentIndex < listStartIndex) listStartIndex--;
+      needRedraw = true;
+    }
+  } else if (downClick && !isDetailView) {
+    if (currentIndex < WiFi.scanComplete() - 1) {
+      currentIndex++;
+      if (currentIndex >= listStartIndex + 5) listStartIndex++;
+      needRedraw = true;
+    }
+  } else if (selClick) {
+    if (!isDetailView) {
+      if (isScanComplete && WiFi.scanComplete() > 0) {
         isDetailView = true;
         needRedraw = true;
       }
-      lastButtonPress = currentMillis;
-    } else if (digitalRead(BTN_PIN_BACK) == LOW) {
-      if (isDetailView) {
-        isDetailView = false;
-        needRedraw = true;
-      }
-      lastButtonPress = currentMillis;
+    } else {
+      isDetailView = false;
+      needRedraw = true;
+    }
+  } else if (backClick) {
+    if (isDetailView) {
+      isDetailView = false;
+      needRedraw = true;
     }
   }
 
@@ -167,7 +211,7 @@ void wifiscanLoop() {
       u8g2.drawStr(0, 30, bssid.c_str());
       u8g2.drawStr(0, 40, signal.c_str());
       u8g2.drawStr(0, 50, ch.c_str());
-      u8g2.drawStr(0, 60, "Press LEFT to go back");
+      u8g2.drawStr(0, 60, "Press SELECT to go back");
       u8g2.sendBuffer();
     }
 
