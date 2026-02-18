@@ -8,16 +8,7 @@
 
 #define SCREEN_WIDTH 170
 #define SCREEN_HEIGHT 320
-/*
-#define TFT_BL           12    // LED back-light control pin
-#define TFT_MISO -1      // -1 es no usado.
-#define TFT_MOSI 35      // Mosi SDA
-#define TFT_SCLK 19      // Reloj
-#define TFT_CS   15       // Chip Select
-#define TFT_DC    13      // Data Comand.
-#define TFT_RST   14      // Reset.
 
-*/
 // Push Buttons-specific Pins
 #define BUTTON_UP_PIN       26 
 #define BUTTON_SELECT_PIN   33
