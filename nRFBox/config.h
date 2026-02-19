@@ -25,7 +25,7 @@
 #define NRF_CSN_PIN_A   17 
 #define NRF_CE_PIN_B    16  
 #define NRF_CSN_PIN_B   4  
-#define NRF_CE_PIN_C    20  
+#define NRF_CE_PIN_C    15  
 #define NRF_CSN_PIN_C   2  
 
 // Common dependencies
