@@ -85,9 +85,9 @@ void CenteredStr(uint8_t screenWidth, uint8_t y, const uint8_t* asciiArray, size
 void utils() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_6x10_tf);
-  Str(7, 15, Line_A, sizeof(Line_A));
-  Str(12, 35, Line_B, sizeof(Line_B));
-  Str(7, 55, Line_C, sizeof(Line_C));
+  Str(2, 15, Line_A, sizeof(Line_A));
+  Str(2, 35, Line_B, sizeof(Line_B));
+  Str(2, 55, Line_C, sizeof(Line_C));
   u8g2.sendBuffer();
 }
 

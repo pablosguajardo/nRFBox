@@ -210,12 +210,13 @@ const unsigned char  bitmap_icon_key [] PROGMEM = {
   0x00, 0x00, 0x80, 0x01, 0x80, 0x01, 0x80, 0x1d, 0x80, 0x1d, 0x80, 0x05, 0x80, 0x1d, 0x80, 0x1d
 };
 
-const uint8_t Line_A[]  = {67,105,102,101,114,84,101,99,104,64,103,109,97,105,108,46,99,111,109}; 
-const uint8_t Line_B[]  = {71,105,116,72,117,98,47,99,105,102,101,114,116,101,99,104};             
-const uint8_t Line_C[]  = {105,110,115,116,97,103,114,97,109,47,99,105,102,101,114,116,101,99,104}; 
-const uint8_t txt_n[]   = {110, 82, 70, 45, 66, 79, 88};                  
-const uint8_t txt_c[]   = {98, 121, 32, 67, 105, 102, 101, 114, 84, 101, 99, 104}; 
-const uint8_t txt_v[]   = {118, 50, 46, 55, 46, 50}; 
+
+const uint8_t Line_A[]  = "CiferTech@gmail.com";
+const uint8_t Line_B[]  = "GitHub/cifertech and";
+const uint8_t Line_C[]  = "GitHub/pablosguajardo";
+const uint8_t txt_n[]   = "nRF-BOX";
+const uint8_t txt_c[]   = "by CiferTech + PSG";
+const uint8_t txt_v[]   = "v2.7.3";
 
 // 'cred', 128x64px
 const unsigned char cred [] PROGMEM = {
