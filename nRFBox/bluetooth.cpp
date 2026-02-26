@@ -408,7 +408,7 @@ void sourappleLoop() {
 
 
 namespace Spoofer {
-
+  bool allSelected=false;
   BLEAdvertising *pAdvertising;
   std::string devices_uuid = "00003082-0000-1000-9000-00805f9b34fb";
 
@@ -421,10 +421,10 @@ namespace Spoofer {
     "Airpods Pro Gen 2", "PowerBeats", "PowerBeats Pro", "Beats Solo Pro",
     "Beats Studio Buds", "Beats Flex", "Beats X", "Beats Solo 3",
     "Beats Studio 3", "Beats Studio Pro", "Beats Fit Pro", "Beats Studio Buds+",
-    "Galaxy Watch 4", "Galaxy Watch 5", "Galaxy Watch 6", "Google Smart Ctrl" 
+    "Galaxy Watch 4", "Galaxy Watch 5", "Galaxy Watch 6", "Google Smart Ctrl", "ALL" 
   };
-  const int deviceCount = 21; 
-
+  const int deviceCount = sizeof(deviceNames) / sizeof(deviceNames[0]);//22
+  bool whilecont=true;
   const char* advTypes[] = {"IND", "D-HIGH", "SCAN", "NONCONN", "D-LOW"};
   const int advTypeCount = 5;
 
@@ -504,12 +504,12 @@ namespace Spoofer {
     return true;
   }
 
-  BLEAdvertisementData getAdvertisementData() {
+  BLEAdvertisementData getAdvertisementData(int devType) {
     BLEAdvertisementData oAdvertisementData = BLEAdvertisementData();
-    if (deviceType <= 17) { // Apple (1–17)
+    if (devType <= 17) { // Apple (1–17)
       oAdvertisementData.addData(std::string((char*)DEVICES[device_index], 31));
-    } else if (deviceType <= 20) { // Samsung (18–20)
-      uint8_t samsungIndex = deviceType - 18; // 18→0, 19→1, 20→2
+    } else if (devType <= 20) { // Samsung (18–20)
+      uint8_t samsungIndex = devType - 18; // 18→0, 19→1, 20→2
       generateSamsungAdvPacket(samsungIndex, oAdvertisementData);
     } else { // Google (21)
       generateGoogleAdvPacket(oAdvertisementData);
@@ -524,12 +524,13 @@ namespace Spoofer {
     return oAdvertisementData;
   }
 
-  void updateDisplay() {
+  void updateDisplayOk(String text) {
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_profont11_tf);
     int xshift = 4;
     for (int i = 0; i < menuSize; i++) {
       int y = (i == 0) ? 14 : (i == 1) ? 43 : 57;
+      //seguir aca dibuja menu:
       if (menuIndex == i) {
         u8g2.setFont(u8g2_font_5x7_tf);
         u8g2.drawStr(0 + xshift, y, ">");
@@ -541,7 +542,7 @@ namespace Spoofer {
       }
       u8g2.setFont(u8g2_font_5x7_tf);
       if (i == 0) {
-        String deviceText = String("[ ") + String(deviceNames[deviceType - 1]) + String(" ]");
+        String deviceText = String("[ ") + text + String(" ]");
         if (deviceText.length() > 25) deviceText = deviceText.substring(0, 15) + "...";
         u8g2.drawStr(5 + xshift, 26, deviceText.c_str());
       } else if (i == 1) {
@@ -556,6 +557,10 @@ namespace Spoofer {
     u8g2.drawHLine(0, 63, 4); u8g2.drawVLine(0, 60, 4);
     u8g2.drawHLine(124, 63, 4); u8g2.drawVLine(127, 60, 4);
     u8g2.sendBuffer();
+  }
+
+  void updateDisplay() {
+      updateDisplayOk(String(deviceNames[deviceType - 1]));
   }
 
   void Airpods() { device_index = 0; }
@@ -579,9 +584,10 @@ namespace Spoofer {
   void Galaxy_Watch_5() { device_index = 1; }
   void Galaxy_Watch_6() { device_index = 2; }
   void Google_Smart_Ctrl() { device_index = 0; } 
+  void SetAll() { device_index = 9999; allSelected=true;} 
 
-  void setAdvertisingData() {
-    switch (deviceType) {
+void setAdvertisingDat(int devType){
+    switch (devType) {
       case 1: Airpods(); break;
       case 2: Airpods_pro(); break;
       case 3: Airpods_Max(); break;
@@ -603,8 +609,38 @@ namespace Spoofer {
       case 19: Galaxy_Watch_5(); break;
       case 20: Galaxy_Watch_6(); break;
       case 21: Google_Smart_Ctrl(); break;
+      case 22: SetAll(); break;
       default: Airpods(); break;
     }
+}
+  void setAdvertisingData() {
+    allSelected=false;
+    setAdvertisingDat(deviceType);
+  }
+
+ //****New method:
+  void initAdvertising(int devType){
+      //Serial.println("initAdvertising started. devType: "+ String(devType));
+      esp_bd_addr_t dummy_addr = {0x00};
+      for (int i = 0; i < 6; i++) {
+        dummy_addr[i] = random(256);
+        if (i == 0) dummy_addr[i] |= 0xC0; // Random non-resolvable
+      }
+      BLEAdvertisementData oAdvertisementData = getAdvertisementData(devType);
+      pAdvertising->setDeviceAddress(dummy_addr, BLE_ADDR_TYPE_RANDOM);
+      pAdvertising->addServiceUUID(devices_uuid);
+      pAdvertising->setAdvertisementData(oAdvertisementData);
+      //time to resend:
+      pAdvertising->setMinInterval(0x20); // 32.5ms
+      pAdvertising->setMaxInterval(0x20);
+
+      //intervalos de conexión sugeridos cuando un cliente se conecta:
+      pAdvertising->setMinPreferred(0x20);
+      pAdvertising->setMaxPreferred(0x20);
+
+
+      pAdvertising->start();
+      Serial.println("Advertising started. Device Type: " + String(deviceNames[devType - 1]));
   }
 
   void toggleAdvertising() {
@@ -614,24 +650,46 @@ namespace Spoofer {
       pAdvertising->stop();
       Serial.println("Advertising stopped.");
     } else {
-      esp_bd_addr_t dummy_addr = {0x00};
-      for (int i = 0; i < 6; i++) {
-        dummy_addr[i] = random(256);
-        if (i == 0) dummy_addr[i] |= 0xC0; // Random non-resolvable
+      if(allSelected){
+          int count=0;
+          Serial.println("All selected");
+          int devType=0;
+          unsigned long lastChange = millis();
+          whilecont=true;
+          while (whilecont) {
+            if (millis() - lastChange >= 1000) {
+              lastChange = millis();
+              devType++;
+              if(devType >= deviceCount){
+                devType=1; 
+                count++;
+                if(count >= 10){
+                  whilecont=false;
+                }
+                
+              }
+              pAdvertising->stop();
+              
+              delay(2); // pequeño margen opcional
+              //primero el set: 
+              setAdvertisingDat(devType);
+              //ahora display:
+              updateDisplayOk(String(deviceNames[deviceType - 1]));
+              //ahora lo llamamos:
+              initAdvertising(devType);  
+
+            }
+            // Muy recomendable en ESP32:
+            delay(2);  // cede tiempo al sistema (FreeRTOS)
+          }
+          updateDisplayOk("ALL");
+      }else{
+        initAdvertising(deviceType);
       }
-      BLEAdvertisementData oAdvertisementData = getAdvertisementData();
-      pAdvertising->setDeviceAddress(dummy_addr, BLE_ADDR_TYPE_RANDOM);
-      pAdvertising->addServiceUUID(devices_uuid);
-      pAdvertising->setAdvertisementData(oAdvertisementData);
-      pAdvertising->setMinInterval(0x20); // 32.5ms
-      pAdvertising->setMaxInterval(0x20);
-      pAdvertising->setMinPreferred(0x20);
-      pAdvertising->setMaxPreferred(0x20);
-      pAdvertising->start();
-      Serial.println("Advertising started.");
     }
     updateDisplay();
   }
+ 
 
   void changeDeviceTypeNext() {
     deviceType = (deviceType % deviceCount) + 1;
@@ -688,6 +746,7 @@ namespace Spoofer {
       unsigned long currentTime = millis();
       if ((currentTime - lastDebounceTime) > debounceDelay) {
         Serial.println("Button press: Pin=" + String(pin));
+        whilecont=false;
         callback();
         lastDebounceTime = currentTime;
       }

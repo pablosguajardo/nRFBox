@@ -216,7 +216,7 @@ const uint8_t Line_B[]  = "GitHub/cifertech and";
 const uint8_t Line_C[]  = "GitHub/pablosguajardo";
 const uint8_t txt_n[]   = "nRF-BOX";
 const uint8_t txt_c[]   = "by CiferTech + PSG";
-const uint8_t txt_v[]   = "v2.7.3";
+const uint8_t txt_v[]   = "v2.7.4";
 
 // 'cred', 128x64px
 const unsigned char cred [] PROGMEM = {
