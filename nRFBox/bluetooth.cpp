@@ -434,13 +434,17 @@ unsigned long lastDebounceTimeUp = 0;
 unsigned long lastDebounceTimeDown = 0;
 unsigned long lastDebounceTimeRight = 0;
 unsigned long lastDebounceTimeLeft = 0;
+unsigned long lastDebounceTimeSelect = 0;
 unsigned long debounceDelay = 200;
 
 void navigateUp();
 void navigateDown();
 void changeOptionRight();
 void changeOptionLeft();
+void changeOptionSelect();
 void handleButtonPress(int pin, unsigned long& lastDebounceTime, void (*callback)());
+
+bool initWhile = false;
 
 uint32_t delayMillisecond = 1000;
 bool isAdvertising = false;
@@ -539,7 +543,6 @@ void updateDisplayOk(String text) {
   for (int i = 0; i < menuSize; i++) {
     int y = (i == 0) ? 14 : (i == 1) ? 43
                                      : 57;
-    //seguir aca dibuja menu:
     if (menuIndex == i) {
       u8g2.setFont(u8g2_font_5x7_tf);
       u8g2.drawStr(0 + xshift, y, ">");
@@ -570,6 +573,14 @@ void updateDisplayOk(String text) {
   u8g2.drawHLine(124, 63, 4);
   u8g2.drawVLine(127, 60, 4);
   u8g2.sendBuffer();
+}
+
+void updateDisplayMessage(String text,String text2) {
+  u8g2.clearBuffer();
+  int xshift = 0;
+   u8g2.drawStr(5 + xshift, 26, text.c_str());
+   u8g2.drawStr(5 + xshift, 43, text2.c_str());
+   u8g2.sendBuffer();
 }
 
 void updateDisplay() {
@@ -709,18 +720,23 @@ void toggleAdvertising() {
     Serial.println("Advertising stopped.");
   } else {
     if (allSelected) {
+      updateDisplayMessage("To cancel, press select","for 1 second.");
+      delay(2000);
+      updateDisplayOk("ALL");
+      initWhile = true;
       int count = 0;
-      Serial.println("All selected");
+      Serial.println("Advertising All selected");
       int devType = 0;
       unsigned long lastChange = millis();
       whilecont = true;
       while (whilecont) {
-        if (millis() - lastChange >= 1000) {
+        if (millis() - lastChange >= 1500) {
           lastChange = millis();
           devType++;
           if (devType >= deviceCount) {
+            //reset count devType
             devType = 1;
-            count++;
+            count++;  //max 10
             if (count >= 10) {
               whilecont = false;
             }
@@ -735,16 +751,19 @@ void toggleAdvertising() {
           delay(2);
           //ahora lo llamamos:
           initAdvertising(devType);
+          handleButtonPress(BTN_PIN_RIGHT, lastDebounceTimeRight, changeOptionRight);
+          handleButtonPress(BTN_PIN_LEFT, lastDebounceTimeLeft, changeOptionLeft);
+          handleButtonPress(BUTTON_SELECT_PIN, lastDebounceTimeSelect, changeOptionLeft);
+          delay(100);
         }
-        handleButtonPress(BUTTON_UP_PIN, lastDebounceTimeUp, navigateUp);
-        handleButtonPress(BUTTON_DOWN_PIN, lastDebounceTimeDown, navigateDown);
-        handleButtonPress(BTN_PIN_RIGHT, lastDebounceTimeRight, changeOptionRight);
-        handleButtonPress(BTN_PIN_LEFT, lastDebounceTimeLeft, changeOptionLeft);
         delay(2);
       }
+
+      initWhile = false;
       //sale pongo como antes de iniciar:
       Serial.println("END setAdvertisingDat: deviceCount=" + String(deviceCount));
       setAdvertisingDat(deviceCount);
+      isAdvertising = false;
       updateDisplayOk("ALL");
     } else {
       initAdvertising(deviceType);
@@ -795,13 +814,25 @@ void navigateDown() {
 void changeOptionRight() {
   if (menuIndex == 0) changeDeviceTypeNext();
   else if (menuIndex == 1) changeAdvTypeNext();
-  else toggleAdvertising();
+  else {
+    if (!initWhile) {
+      toggleAdvertising();
+    }
+  }
 }
+
+void changeOptionSelect() {
+}
+
 
 void changeOptionLeft() {
   if (menuIndex == 0) changeDeviceTypePrev();
   else if (menuIndex == 1) changeAdvTypePrev();
-  else toggleAdvertising();
+  else {
+    if (!initWhile) {
+      toggleAdvertising();
+    }
+  }
 }
 
 void handleButtonPress(int pin, unsigned long& lastDebounceTime, void (*callback)()) {
@@ -809,7 +840,12 @@ void handleButtonPress(int pin, unsigned long& lastDebounceTime, void (*callback
     unsigned long currentTime = millis();
     if ((currentTime - lastDebounceTime) > debounceDelay) {
       Serial.println("Button press: Pin=" + String(pin));
-      whilecont = false;
+      if (isAdvertising) {
+        whilecont = false;
+        Serial.println("whilecont = false");
+      } else {
+        Serial.println("whilecont: " + String(whilecont) + " isAdvertising: " + String(isAdvertising) + " allSelected: " + String(allSelected) + " initWhile: " + String(initWhile));
+      }
       callback();
       lastDebounceTime = currentTime;
     }
