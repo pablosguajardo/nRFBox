@@ -17,11 +17,11 @@
 // Ajustar según tu cableado real
 // -----------------------------------------------------------------------------
 #ifndef NRFBOX_TFT_WIDTH
-#define NRFBOX_TFT_WIDTH 172
+#define NRFBOX_TFT_WIDTH 240
 #endif
 
 #ifndef NRFBOX_TFT_HEIGHT
-#define NRFBOX_TFT_HEIGHT 320
+#define NRFBOX_TFT_HEIGHT 240
 #endif
 
 // Backlight

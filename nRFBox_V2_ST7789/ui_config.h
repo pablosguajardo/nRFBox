@@ -17,11 +17,11 @@
 
 // Tamaño "de diseño" original del proyecto (U8g2 OLED 128x64)
 #ifndef NRFBOX_UI_DESIGN_W
-#define NRFBOX_UI_DESIGN_W 172
+#define NRFBOX_UI_DESIGN_W 240
 #endif
 
 #ifndef NRFBOX_UI_DESIGN_H
-#define NRFBOX_UI_DESIGN_H 320
+#define NRFBOX_UI_DESIGN_H 240
 #endif
 
 // Canvas lógico estilo U8g2 (lo que la mayoría del código asume)
